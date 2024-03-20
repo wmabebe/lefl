@@ -12,7 +12,8 @@ from collections import defaultdict
 import PIL
 import json
 import tarfile
-
+from torchvision import datasets, transforms
+from torch.utils.data.dataset import Dataset
 import os
 import os.path
 import logging
@@ -51,6 +52,42 @@ def default_loader(path):
         return accimage_loader(path)
     else:
         return pil_loader(path)
+
+class RandomCIFARLikeDataset(Dataset):
+    def __init__(self, datasize):
+        self.datasize = datasize
+        self.transform = transforms.Compose([
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor()
+        ])
+
+    def __len__(self):
+        return self.datasize
+
+    def __getitem__(self, idx):
+        random_image = np.random.randint(0, 256, size=(32, 32, 3), dtype=np.uint8)
+        random_image_pil = Image.fromarray(random_image)
+        random_image_transformed = self.transform(random_image_pil)
+        return random_image_transformed, 0  # 0 is a dummy label for random images
+
+class RandomMNISTLikeDataset(Dataset):
+    def __init__(self, datasize):
+        self.datasize = datasize
+        self.transform = transforms.Compose([
+            transforms.RandomCrop(28, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor()
+        ])
+
+    def __len__(self):
+        return self.datasize
+
+    def __getitem__(self, idx):
+        random_image = np.random.randint(0, 256, size=(28, 28), dtype=np.uint8)  # MNIST-like size (28x28)
+        random_image_pil = Image.fromarray(random_image, mode='L')  # 'L' mode for grayscale
+        random_image_transformed = self.transform(random_image_pil)
+        return random_image_transformed, 0  # 0 is a dummy label for random images
 
 class CustomTensorDataset(data.TensorDataset):
     def __getitem__(self, index):

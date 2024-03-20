@@ -93,18 +93,21 @@ if __name__ == '__main__':
     args["sim_measure"] = "kl" #optionally EMD for earth movers distance
 
     print("Args:",args)
-    # label_node_map[0] = [0,5,10,15,20]
-    # label_node_map[1] = [0,5,10,15,20]
-    # label_node_map[2] = [1,6,11,16,21]
-    # label_node_map[3] = [1,6,11,16,21]
-    # label_node_map[4] = [2,7,12,17,22]
-    # label_node_map[5] = [2,7,12,17,22]
-    # label_node_map[6] = [3,8,13,18,23]
-    # label_node_map[7] = [3,8,13,18,23]
-    # label_node_map[8] = [4,9,14,19]
-    # label_node_map[9] = [4,9,14,19]
+    
     label_node_map = None
-    # label_node_map = {}
+    label_node_map = {}
+    
+    label_node_map[0] = [0,5,10,15,20]
+    label_node_map[1] = [0,5,10,15,20]
+    label_node_map[2] = [1,6,11,16,21]
+    label_node_map[3] = [1,6,11,16,21]
+    label_node_map[4] = [2,7,12,17,22]
+    label_node_map[5] = [2,7,12,17,22]
+    label_node_map[6] = [3,8,13,18,23]
+    label_node_map[7] = [3,8,13,18,23]
+    label_node_map[8] = [4,9,14,19]
+    label_node_map[9] = [4,9,14,19]
+
     # label_node_map[0] = [0,1,2,3,4]
     # label_node_map[1] = [0,1,2,3,4]
     # label_node_map[2] = [0,1,2,3,4,5,6]

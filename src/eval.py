@@ -11,10 +11,10 @@ import argparse
 from fedlib.utils import get_logger, init_logs
 from fedlib.ve.csfl import CSFLEnv
 from fedlib.lib import Server, Client
-from fedlib.networks import resnet20, NeuralNet, vgg11
+from fedlib.networks import resnet20, NeuralNet, vgg11, ToyCifarNet, SimpleCNN
 from fedlib.lib.sampler import stratified_cluster_sampler
 from fedlib.lib.algo.fedcs import Trainer
-from fedlib.datasets import partition_data, get_dataloader,get_client_dataloader, get_val_dataloader
+from fedlib.datasets import partition_data, get_dataloader,get_client_dataloader, get_val_dataloader, get_data_loaders
 from fedlib.networks import VAE, NISTAutoencoder, Cifar100Autoencoder, Cifar10Autoencoder
 
 from torch import nn
@@ -30,8 +30,7 @@ def get_args():
     parser.add_argument('--epochs', type=int, default=10, help='number of local epochs')
     parser.add_argument('--pre_epochs', type=int, default=10, help='number of local pre train epochs')
     parser.add_argument('--n_clients', type=int, default=100,  help='number of workers in a distributed cluster')
-    parser.add_argument('--alg', type=str, default='fedavg',
-                            help='communication strategy: fedavg/fedprox')
+    parser.add_argument('--alg', type=str, default='fedavg', help='communication strategy: fedavg/fedprox')
     parser.add_argument('--comm_round', type=int, default=50, help='number of maximum communication roun')
     parser.add_argument('--is_same_initial', type=int, default=1, help='Whether initial all the models with the same parameters in fedavg')
     parser.add_argument('--init_seed', type=int, default=0, help="Random seed")
@@ -55,6 +54,9 @@ def get_args():
     parser.add_argument('--lr_scheduler', type=str, default='ExponentialLR', help='Learning rate scheduler')
     parser.add_argument('--decay_rate', type=float, default=.99, help='Learning rate scheduler decay rate')
     parser.add_argument('--num_clusters', type=int, default=0, help='Number of clusters: default=0 meaning log(n)')
+    parser.add_argument('--partitioner', type=str, default='fedlib', help='Data splitting method (fedlib, flcir)')
+    parser.add_argument('--realworld', action='store_true', help='Split like realworld when splitting like flcir')
+    parser.add_argument('--val_dataset', type=str, default='similar', help='Data splitting method (similar, random)')
 
     args = parser.parse_args()
     return args
@@ -88,6 +90,9 @@ if __name__ == '__main__':
     args["sim_measure"] = "kl" #optionally EMD for earth movers distance
 
     print("Args:",args)
+    
+    label_node_map = {}
+    #Exp 1
     # label_node_map[0] = [0,5,10,15,20]
     # label_node_map[1] = [0,5,10,15,20]
     # label_node_map[2] = [1,6,11,16,21]
@@ -98,17 +103,43 @@ if __name__ == '__main__':
     # label_node_map[7] = [3,8,13,18,23]
     # label_node_map[8] = [4,9,14,19]
     # label_node_map[9] = [4,9,14,19]
-    label_node_map = {}
-    label_node_map[0] = [0,1,2,3,4]
-    label_node_map[1] = [0,1,2,3,4]
-    label_node_map[2] = [0,1,2,3,4,5,6]
-    label_node_map[3] = [5,6,7,8,9]
-    label_node_map[4] = [5,6,7,8,9,10,11]
-    label_node_map[5] = [10,11,12,13]
-    label_node_map[6] = [10,11,12,13,14]
-    label_node_map[7] = [13,14,15,16]
-    label_node_map[8] = [13,14,15,16,17,18]
-    label_node_map[9] = [19,20,21,22,23]
+    #Exp 2
+    # label_node_map[0] = [0,1,2,3,4]
+    # label_node_map[1] = [0,1,2,3,4]
+    # label_node_map[2] = [0,1,2,3,4,5,6]
+    # label_node_map[3] = [5,6,7,8,9]
+    # label_node_map[4] = [5,6,7,8,9,10,11]
+    # label_node_map[5] = [10,11,12,13]
+    # label_node_map[6] = [10,11,12,13,14]
+    # label_node_map[7] = [13,14,15,16]
+    # label_node_map[8] = [13,14,15,16,17,18]
+    # label_node_map[9] = [19,20,21,22,23]
+    
+    #Exp CASE-1 3:1
+    # label_node_map[0] = list(range(0,18,1))
+    # label_node_map[1] = list(range(18,36,1))
+    # label_node_map[2] = list(range(36,54,1))
+    # label_node_map[3] = list(range(54,72,1))
+    # label_node_map[4] = list(range(72,90,1))
+    # label_node_map[5] = list(range(90,96,1))
+    # label_node_map[6] = list(range(96,102,1))
+    # label_node_map[7] = list(range(102,108,1))
+    # label_node_map[8] = list(range(108,114,1))
+    # label_node_map[9] = list(range(114,120,1))
+    
+    #Exp CASE-1 5:1
+    label_node_map[0] = list(range(0,20,1))
+    label_node_map[1] = list(range(20,40,1))
+    label_node_map[2] = list(range(40,60,1))
+    label_node_map[3] = list(range(60,80,1))
+    label_node_map[4] = list(range(80,100,1))
+    label_node_map[5] = list(range(100,104,1))
+    label_node_map[6] = list(range(104,108,1))
+    label_node_map[7] = list(range(108,112,1))
+    label_node_map[8] = list(range(112,116,1))
+    label_node_map[9] = list(range(116,120,1))
+    
+    
 
     X_train, y_train, X_test, y_test, net_dataidx_map, traindata_cls_counts = partition_data(
     args["dataset"],args["datadir"], args['partition'], args['n_clients'], beta=args['beta'],split=args['split'],label_node_map=label_node_map)
@@ -124,18 +155,25 @@ if __name__ == '__main__':
     print(args)
     #Setup global dataset dataloader
     if args["dataset"] in ["cifar10","cifar100"]:
-        val_dl_global = get_val_dataloader("tinyimagenet", "./data/tiny-imagenet-200/", 1000, 32)
+        if args["val_dataset"] == "random":
+            val_dl_global = get_val_dataloader("random-cifar-like", None, 1000, 32)
+        else:
+            val_dl_global = get_val_dataloader("tinyimagenet", "./data/tiny-imagenet-200/", 1000, 32)
     elif args["dataset"] in ["mnist","femnist"]:
-        val_dl_global = get_val_dataloader("fmnist", "./data/", 1000, 32)
+        if args["val_dataset"] == "random":
+            val_dl_global = get_val_dataloader("random-mnist-like", None, 1000, 32)
+        else:
+            val_dl_global = get_val_dataloader("fmnist", "./data/", 1000, 32)
     elif args["dataset"] in ["tinyimagenet"]:
-         val_dl_global = get_val_dataloader("cifar10", "./data/", 1000, 32)
+        if args["val_dataset"] == "random":
+            val_dl_global = get_val_dataloader("random-cifar-like", None, 1000, 32)
+        else:
+            val_dl_global = get_val_dataloader("cifar10", "./data/", 1000, 32)
     
     args["val_dl_global"] = val_dl_global
 
     print("train_dl_global:",len(train_dl_global.dataset))
-    print("test_dl_global:",len(test_dl_global.dataset))
-    
-    args["test_dl_global"] = test_dl_global
+
 
     if args["dataset"] in ["mnist","fmnist"]:
         #Custom NIST FFNN model
@@ -149,6 +187,10 @@ if __name__ == '__main__':
         #Use custom resnet for cifar10
         if args["model"] == "res20":
             model = resnet20(10)
+        elif args["model"] == "simple":
+            input_dim = 400
+            hidden_dims = [120, 84]
+            model = SimpleCNN(input_dim,hidden_dims,10)
         elif args["model"] == "vgg11":
             model = vgg11(10)
         elif args["model"] == "mobilenetv3":
@@ -156,6 +198,8 @@ if __name__ == '__main__':
             #net = MobileNetV3('small',n_classes)
         elif args["model"] == "efficientnet":
             model = EfficientNet.from_name('efficientnet-b0', num_classes=n_classes)
+        elif args["model"] == "toycifarnet":
+            model = ToyCifarNet()
     elif args["dataset"] == "cifar100":
         #Use torchvision resnet for cifar100
         #model = models.resnet18(num_classes=100)
@@ -165,11 +209,22 @@ if __name__ == '__main__':
             model = vgg11(100)
    
 
+
+    if args["partitioner"] == 'flcir':
+        realworld_split = args['realworld']
+        data_loaders, test_dl_global, data_size_per_client = get_data_loaders(args["n_clients"], args["batch_size"], realworld_split)
+    else:
+        data_loaders, test_loaders = get_client_dataloader(args["dataset"], args["datadir"], args['batch_size'], 32, net_dataidx_map,split=args['split'])
+
+    print("test_dl_global:",len(test_dl_global.dataset))
+    
+    args["test_dl_global"] = test_dl_global
+    
+    args["n_classes"] = n_classes
     args["global_model"] = model
     server = Server(**args)
     clients = {}
 
-    data_loaders, test_loaders = get_client_dataloader(args["dataset"], args["datadir"], args['batch_size'], 32, net_dataidx_map,split=args['split'])
 
     criterion_pred = torch.nn.CrossEntropyLoss()
 

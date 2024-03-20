@@ -10,11 +10,13 @@ from torchvision import transforms, datasets
 from torch.utils.data.sampler import SubsetRandomSampler
 from urllib.request import urlopen
 from io import BytesIO
+from PIL import Image
+from torch.utils.data import DataLoader, Dataset
 from zipfile import ZipFile
 import os
 import numpy as np
 from .datasets import MNIST_truncated, FashionMNIST_truncated, SVHN_custom, CIFAR10_truncated, Generated, \
-    FEMNIST, CelebA_custom, CIFAR100_truncated
+    FEMNIST, CelebA_custom, CIFAR100_truncated, RandomCIFARLikeDataset, RandomMNISTLikeDataset
 from ..utils import mkdirs, get_logger
 
 logger = get_logger()
@@ -584,12 +586,12 @@ def get_client_dataloader(dataset, datadir, train_bs, test_bs, dataidxs=None, no
             #train_dl = data.DataLoader(dataset=torch.utils.data.Subset(train_ds, dataid[:int(0.8*len(dataid))]), batch_size=train_bs, shuffle=True, drop_last=True)     
             #local_test_dl = data.DataLoader(dataset=torch.utils.data.Subset(train_ds, dataid[int(0.8*len(dataid)):]), batch_size=train_bs, shuffle=True, drop_last=True)    
             #local_test_loaders.append(local_test_dl)
-            logger.info(f"Client ID:{key+1},\tLocal Train Data Size:{len(train_ds)},\tLocal Test Data Size:{len(test_ds)}")
+            logger.info(f"Client ID:{key+1},\tLocal Train Data Size:{len(dataid)},\tLocal Test Data Size:{len(test_ds)}")
 
         else:
             train_dl = data.DataLoader(dataset=torch.utils.data.Subset(train_ds, dataid), batch_size=train_bs, shuffle=True, drop_last=True)   
             #print("Client ID:",key+1, ",\tLocal Train Data Size:",len(train_dl.dataset),len(dataid))  
-            logger.info(f"Client ID:{key+1},\tLocal Train Data Size:{len(train_ds)}")
+            logger.info(f"Client ID:{key+1},\tLocal Train Data Size:{len(dataid)}")
         train_loaders.append(train_dl)
 
     
@@ -612,7 +614,13 @@ def get_val_dataloader(dataset, datadir, datasize, val_bs):
         torch.utils.data.DataLoader: Data loader for the validation data.
     """
     val_dl = None
-    if dataset == 'tinyimagenet':
+    if dataset == 'random-cifar-like':
+        random_dataset = RandomCIFARLikeDataset(datasize)
+        val_dl = DataLoader(dataset=random_dataset, batch_size=val_bs, shuffle=True, drop_last=False)
+    elif dataset == 'random-mnist-like':
+        random_dataset = RandomMNISTLikeDataset(datasize)
+        val_dl = DataLoader(dataset=random_dataset, batch_size=val_bs, shuffle=True, drop_last=False)
+    elif dataset == 'tinyimagenet':
         if not os.path.exists('./data/tiny-imagenet-200'):
             download_and_unzip('http://cs231n.stanford.edu/tiny-imagenet-200.zip','./data/')
         random_ids = np.random.randint(100000, size=datasize)

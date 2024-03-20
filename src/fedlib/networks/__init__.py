@@ -3,3 +3,4 @@ from .resnet import *
 from .vgg import *
 from .resAE import *
 from .ffnn import *
+from .toycifarnet import *
